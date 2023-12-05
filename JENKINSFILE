@@ -1,0 +1,70 @@
+pipeline {
+    agent { label 'principal' }
+     stages {
+        stage('Get Code') {
+            steps {
+                // Obtener código del repo
+                git 'https://github.com/gauladell/unir-helloworld.git'
+            }
+        }
+        
+        stage('Requirements') {
+            steps {
+                // Descargar Wiremock en el agente
+                dir(WORKSPACE) {
+                    sh ' /opt/homebrew/bin/wget https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.3.1/wiremock-standalone-3.3.1.jar -O wiremock.jar'
+                    sh 'ls -lah'
+                }
+            }
+        }
+    
+        stage('Build') {
+           steps {
+              echo 'Eyyy, esto es Python. No hay que compilar nada!!!'
+	          echo WORKSPACE
+              sh 'ls -lah'
+           }
+        }
+        
+        stage('Unit') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                        ${PYBIN}/pytest --junitxml=result-unit.xml test/unit
+                    '''
+               }
+            }
+        }   
+
+
+        stage('Rest') {
+            parallel{
+                stage("Run Flask") {
+                    steps {
+                        sh '''
+                            export FLASK_APP="app/api.py"
+                            export FLASK_ENV="development"
+                            ${PYBIN}/flask run --host=127.0.0.1 &
+                        '''
+                    }
+                }
+                stage("Run Wiremock tests") {
+                    steps{
+                        sh 'nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+                        sh 'export PYTHONPATH=${WORKSPACE}'
+                        sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
+                    }
+                }
+            }
+        }
+
+        stage('Results') {
+            steps {
+                junit 'result*.xml' 
+            }
+        }
+     
+    }
+ 
+}
