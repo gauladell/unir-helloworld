@@ -6,7 +6,7 @@ import pytest
 
 BASE_URL = "http://192.168.64.10:5000"
 BASE_URL_MOCK = "http://192.168.64.10:9090"
-DEFAULT_TIMEOUT = 100  # in secs
+DEFAULT_TIMEOUT = 10  # in secs
 
 @pytest.mark.api
 class TestApi(unittest.TestCase):
