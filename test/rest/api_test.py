@@ -2,6 +2,7 @@ import http.client
 import os
 import unittest
 from urllib.request import urlopen
+
 import pytest
 
 BASE_URL = "http://192.168.64.10:5000"
@@ -25,8 +26,9 @@ class TestApi(unittest.TestCase):
         )
 
     def test_api_sqrt(self):
-        url = f"{BASE_URL_MOCK}/calc/sqrt/64",
+        url = f"{BASE_URL_MOCK}/calc/sqrt/64"
         response = urlopen(url, timeout=DEFAULT_TIMEOUT)
+        
         print(response)
         
         self.assertEqual(
