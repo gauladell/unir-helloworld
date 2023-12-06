@@ -1,8 +1,8 @@
 import http.client
 import os
 import unittest
-from urllib.request import urlopen
-
+# Añadir import de Request 
+from urllib.request import Request, urlopen
 import pytest
 
 BASE_URL = "http://192.168.64.10:5000"
@@ -26,8 +26,13 @@ class TestApi(unittest.TestCase):
         )
 
     def test_api_sqrt(self):
-        url = f"{BASE_URL_MOCK}/calc/sqrt/64"
-        response = urlopen(url, timeout=DEFAULT_TIMEOUT)
+        
+        #response = urlopen(url, timeout=DEFAULT_TIMEOUT)
+        resp = Request(
+            url = f"{BASE_URL_MOCK}/calc/sqrt/64",
+            headers={'User-Agent': 'Mozilla/5.0'}            
+        )
+        response = urlopen(resp).read()
         self.assertEqual(
             response.status, http.client.OK, f"Error en la petición API a {url}"
         )
