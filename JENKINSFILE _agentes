@@ -1,0 +1,102 @@
+pipeline {
+    agent any
+     stages {
+        stage('Get Code') {
+            agent { label 'principal' }
+            steps {
+                // Obtener código del repo
+                sh '''  whoami
+                        hostname
+                '''
+                git 'https://github.com/gauladell/unir-helloworld.git'
+                stash(name: 'repo')
+            }
+        }
+        
+        stage('Requirements') {
+            agent { label 'rest' }
+            steps {
+                 sh '''  whoami
+                        hostname
+                '''
+                unstash 'repo'
+                // Descargar Wiremock en el agente
+                
+                dir(WORKSPACE) {
+                    sh ' wget https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.3.1/wiremock-standalone-3.3.1.jar -O wiremock.jar'
+                }
+            }
+        }
+    
+        stage('Build') {
+           agent { label 'principal' }
+           steps {
+              echo 'Eyyy, esto es Python. No hay que compilar nada!!!'
+	          echo WORKSPACE
+              sh 'ls -lah'
+           }
+        }
+        
+        stage('Unit') {
+            agent { label 'unit' }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    unstash 'repo'
+                    sh '''  whoami
+                            hostname
+                    '''
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                        ${PYBIN}/pytest --junitxml=result-unit.xml test/unit
+                    '''
+                    stash includes: '**/result-unit.xml', name: 'result-unit'
+               }
+            }
+        }   
+
+
+        stage('Rest') {
+            
+            parallel{
+                stage("Run Flask") {
+                    agent { label 'rest' }
+                    steps {
+                         sh ''' whoami
+                                hostname
+                        '''
+                        sh '''
+                            export FLASK_APP="app/api.py"
+                            export FLASK_ENV="development"
+                            nohup ${PYBIN}/flask run --host=192.168.64.10 &
+                            sleep 10
+                        '''
+                    }
+                }
+                stage("Run Wiremock tests") {
+                    agent { label 'rest' }
+                    steps{
+                        
+                         sh ''' whoami
+                                hostname
+                        '''
+                        sh 'nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 192.168.64.10 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+                        sh 'sleep 5'
+                        sh 'export PYTHONPATH=${WORKSPACE}'
+                        sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
+                        stash includes: '**/result-rest.xml', name: 'result-rest'
+                    }
+                }
+            }
+        }
+
+        stage('Results') {
+            steps {
+                unstash 'result-rest'
+                unstash 'result-unit'
+                junit 'result*.xml' 
+            }
+        }
+     
+    }
+ 
+}
