@@ -46,7 +46,7 @@ pipeline {
 		    ${PYBIN}/flask run --host=127.0.0.1 &
 		'''
 		    sh 'nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
-		    sh 'sleep 15'
+		    sh 'sleep 20'
 		    sh 'export PYTHONPATH=${WORKSPACE}'
 		    sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
 		
