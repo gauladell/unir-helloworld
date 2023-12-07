@@ -13,8 +13,8 @@ pipeline {
                 // Descargar Wiremock en el agente
                 dir(WORKSPACE) {
                     sh ' /opt/homebrew/bin/wget https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.3.1/wiremock-standalone-3.3.1.jar -O wiremock.jar'
-                    sh 'ls -lah'
                 }
+        
             }
         }
     
@@ -39,23 +39,26 @@ pipeline {
 
 
         stage('Rest') {		
-	    steps {
-		sh '''
-		    export FLASK_APP="app/api.py"
-		    export FLASK_ENV="development"
-		    ${PYBIN}/flask run --host=127.0.0.1 &
-		'''
-		    sh 'nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
-		    sh 'sleep 20'
-		    sh 'export PYTHONPATH=${WORKSPACE}'
-		    sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
-		
-	    }		           
+    	    steps {
+    		sh '''
+    		    export FLASK_APP="app/api.py"
+    		    export FLASK_ENV="development"
+    		    nohup ${PYBIN}/flask run --host=127.0.0.1 &
+    		'''
+    		
+    		    sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+    		    //sh 'sleep 30'
+    		    sh 'export PYTHONPATH=${WORKSPACE}'
+    		    sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
+    		    
+    		  
+    	    }		           
         }
 
         stage('Results') {
             steps {
                 junit 'result*.xml' 
+                sh 'export BUILD_ID=${BUILD_ID}'
             }
         }
      
