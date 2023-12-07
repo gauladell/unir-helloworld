@@ -64,10 +64,10 @@ pipeline {
 		sh '''
 		    export FLASK_APP="app/api.py"
 		    export FLASK_ENV="development"
-		    nohup ${PYBIN}/flask run --host=192.168.64.10 &
+		    nohup ${PYBIN}/flask run --host=127.0.0.1 &
 		'''
-		sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 192.168.64.10 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &' 
-		sh 'sleep 15'
+		sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &' 
+		//sh 'sleep 15'
 		sh 'export PYTHONPATH=${WORKSPACE}'
 		sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
 		stash includes: '**/result-rest.xml', name: 'result-rest'
