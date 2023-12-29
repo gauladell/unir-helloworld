@@ -5,5 +5,5 @@ El objetivo es que el alumno entienda estos conceptos, por lo que el código y l
 Este proyecto sirve también como fuente de código para el pipeline de Jenkins.
 
 
-Caso Practico 1A - Ël último commit és el f48ada9 y se pueden ver todos los archivos aquí: https://github.com/gauladell/unir-helloworld/tree/f48ada9e1e3f0e0e6328fb405319d74a62525899
+Caso Practico 1A - El último commit es el f48ada9 y se pueden ver todos los archivos aquí: https://github.com/gauladell/unir-helloworld/tree/f48ada9e1e3f0e0e6328fb405319d74a62525899
 
