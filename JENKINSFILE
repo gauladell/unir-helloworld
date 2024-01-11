@@ -26,7 +26,29 @@ pipeline {
            }
         }
         
-        stage('Static') {
+   
+        
+        stage('Unit') {
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    //Dado que Coverage ya lanza los tests unitarios utilizaremos directamente coverage en esta etapa 
+                    // a fin de no repetir las mismas pruebas 2 veces
+                    //${PYBIN}/pytest --junitxml=result-unit.xml test/unit
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                         ${PYBIN}/coverage run --branch --source=app --omit=app/init.py,app/api.py -m pytest test/unit/
+			 ${PYBIN}/coverage xml
+                        
+                    '''
+               }
+            }
+        }
+	stage('Cobertura') {
+            steps {
+                    cobertura  coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100, 90, 80', failUnhealthy: false, failUnstable: false, lineCoverageTargets: '100, 95, 80'
+                }
+        }
+       stage('Static') {
             steps {
                  catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     sh '''
@@ -38,21 +60,6 @@ pipeline {
                 recordIssues enabledForFailure: true, tools:[flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold:8,type: 'TOTAL',unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]], unhealthy:10
            }
             
-        }
-        
-        stage('Unit') {
-            steps {
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    //Dado que Coverage ya lanza los tests unitarios utilizaremos directamente coverage en esta etapa 
-                    // a fin de no repetir las mismas pruebas 2 veces
-                    //${PYBIN}/pytest --junitxml=result-unit.xml test/unit
-                    sh '''
-                        export PYTHONPATH=${WORKSPACE}
-                         ${PYBIN}/coverage run --branch --source=app --omit=app/init.py,app/api.py -m pytest test/unit/
-                        
-                    '''
-               }
-            }
         }
         stage('Rest') {		
             parallel{
@@ -83,15 +90,7 @@ pipeline {
                 }
             }
         }
-        stage('Cobertura') {
-            steps {
-                    sh '''
-                        export PYTHONPATH=${WORKSPACE}
-                        ${PYBIN}/coverage xml
-                    '''
-                    cobertura  coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100, 90, 80', failUnhealthy: false, failUnstable: false, lineCoverageTargets: '100, 95, 80'
-                }
-        }
+
         stage('Security') {
             steps {
                     sh '''
