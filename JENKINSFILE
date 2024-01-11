@@ -26,39 +26,101 @@ pipeline {
            }
         }
         
+        stage('Static') {
+            steps {
+                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        
+                        ${PYBIN}/flake8 --format=pylint --exit-zero ${WORKSPACE}/app > ${WORKSPACE}/flake8.out
+                        
+                    '''
+                 }     
+                recordIssues enabledForFailure: true, tools:[flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold:8,type: 'TOTAL',unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]], unhealthy:10
+           }
+            
+        }
+        
         stage('Unit') {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    //Dado que Coverage ya lanza los tests unitarios utilizaremos directamente coverage en esta etapa 
+                    // a fin de no repetir las mismas pruebas 2 veces
+                    //${PYBIN}/pytest --junitxml=result-unit.xml test/unit
                     sh '''
                         export PYTHONPATH=${WORKSPACE}
-                        ${PYBIN}/pytest --junitxml=result-unit.xml test/unit
+                         ${PYBIN}/coverage run --branch --source=app --omit=app/init.py,app/api.py -m pytest test/unit/
+                        
                     '''
                }
             }
-        }   
-
-
-        stage('Rest') {		
-    	    steps {
-    		sh '''
-    		    export FLASK_APP="app/api.py"
-    		    export FLASK_ENV="development"
-    		    nohup ${PYBIN}/flask run --host=127.0.0.1 &
-    		'''
-    		
-    		    sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
-    		    //sh 'sleep 30'
-    		    sh 'export PYTHONPATH=${WORKSPACE}'
-    		    sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
-    		    
-    		  
-    	    }		           
         }
+        stage('Rest') {		
+            parallel{
+                stage("flask & Wiremock"){
+            	    steps {
+            		sh '''
+            		    export FLASK_APP="app/api.py"
+            		    export FLASK_ENV="development"
+            		    nohup ${PYBIN}/flask run --host=127.0.0.1 &
+            		'''
+            		   
+            		    sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+            		    
+            		    //sh 'export PYTHONPATH=${WORKSPACE}'
+            		    //sh '${PYBIN}/pytest  --junitxml=result-rest.xml test/rest' 
+            		    
+            	    }
+                }
+                stage("Run Tests"){
+            	    steps {            		
+            		    sh 'sleep 30'
+            		   // sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+            		    
+            		    sh 'export PYTHONPATH=${WORKSPACE}'
+            		    sh '${PYBIN}/pytest --junitxml=result-rest.xml test/rest' 
+            		    
+            	    }
+                }
+            }
+        }
+        stage('Cobertura') {
+            steps {
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                        ${PYBIN}/coverage xml
+                    '''
+                    cobertura  coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100, 90, 80', failUnhealthy: false, failUnstable: false, lineCoverageTargets: '100, 95, 80'
+                }
+        }
+        stage('Security') {
+            steps {
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                        ${PYBIN}/bandit --exit-zero  -r . -f custom -o bandit.out --severity-level medium --msg-template "{abspath}:{line}: [{test_id}, {severity}] {msg}" 
+                    '''
+                    recordIssues enabledForFailure: true, tools:[pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold:1,type: 'TOTAL',unstable: true], [threshold: 3, type: 'TOTAL', unstable: false]]
+                }
+        }
+        
+        stage('Performance') {
+            steps {
+                    sh '''
+                    ls -lah
+                    ls -lah test/jmeter
+                      /usr/local/bin/jmeter -n -t test/jmeter/performance.jmx -f -l flask.jtl
+                    '''
+                    perfReport sourceDataFiles: 'flask.jtl'
+                }
+        }
+
+
+
 
         stage('Results') {
             steps {
                 junit 'result*.xml' 
                 sh 'export BUILD_ID=${BUILD_ID}'
+                
             }
         }
      
