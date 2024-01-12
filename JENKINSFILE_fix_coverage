@@ -4,8 +4,8 @@ pipeline {
         stage('Get Code') {
             steps {
                 // Obtener código del repo
-                git 'https://github.com/gauladell/unir-helloworld'
-		sh('git checkout feature_fix_coverage')
+		sh 'git clone https://github.com/gauladell/unir-helloworld.git'
+		sh 'git checkout feature_fix_coverage'
             }
         }
         
