@@ -2,13 +2,10 @@ pipeline {
     agent { label 'principal' }
      stages {
         stage('Get Code') {
-            steps {
+            //steps {
                 // Obtener código del repo
-		sh 'git clone https://github.com/gauladell/unir-helloworld.git'
-		sh 'git fetch'
-		sh 'git checkout feature_fix_coverage'
-		sh 'git pull'
-            }
+		//sh 'git clone https://github.com/gauladell/unir-helloworld.git'
+            //}
         }
         
         stage('Requirements') {
