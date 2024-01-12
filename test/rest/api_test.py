@@ -9,8 +9,8 @@ import pytest
 #BASE_URL = "http://192.168.64.10:5000"
 #BASE_URL_MOCK = "http://192.168.64.10:9090"
 
-BASE_URL = "http://localhost:5000"
-BASE_URL_MOCK = "http://localhost:9090"
+BASE_URL = "http://127.0.0.1:5000"
+BASE_URL_MOCK = "http://127.0.0.1:9090"
 
 DEFAULT_TIMEOUT = 10  # in secs
 
