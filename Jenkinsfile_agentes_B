@@ -1,0 +1,175 @@
+pipeline {
+    agent { label 'principal' }
+     stages {
+        stage('Get Code') {
+            agent { label 'principal' }
+            steps {
+                // Obtener código del repo
+                git 'https://github.com/gauladell/unir-helloworld.git'
+                stash(name: 'repo')
+            }
+        }
+        
+        stage('Requirements') {
+            steps {
+                agent { label 'principal' }
+                // Descargar Wiremock en el agente
+                
+                unstash 'repo'
+                dir(WORKSPACE) {
+                    sh '/opt/homebrew/bin/wget https://repo1.maven.org/maven2/org/wiremock/wiremock-standalone/3.3.1/wiremock-standalone-3.3.1.jar -O wiremock.jar'
+                }
+                stash(name: 'repo')
+               sh('ls -lah')
+        
+            }
+        }
+    
+        stage('Build') {
+           agent { label 'principal' }
+           steps {
+              echo 'Eyyy, esto es Python. No hay que compilar nada!!!'
+	          echo WORKSPACE
+              sh 'ls -lah'
+           }
+        }
+        
+   
+        
+        stage('Unit') {
+            agent { label 'unit' }
+            steps {
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    //Dado que Coverage ya lanza los tests unitarios utilizaremos directamente coverage en esta etapa 
+                    // a fin de no repetir las mismas pruebas 2 veces
+                    //${PYBIN}/pytest --junitxml=result-unit.xml test/unit
+                    unstash 'repo'
+                    sh '''  whoami
+                            hostname
+                    '''
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                         ${PYBIN}/coverage run --branch --source=app --omit=app/init.py,app/api.py -m pytest test/unit/
+			 ${PYBIN}/coverage xml
+                        
+                    '''
+               }
+            }
+        }
+	    stage('Cobertura') {
+	        agent { label 'unit' }
+            steps {
+                sh '''  whoami
+                    hostname
+                '''
+                    cobertura  coberturaReportFile: 'coverage.xml', conditionalCoverageTargets: '100, 90, 80', failUnhealthy: false, failUnstable: false, lineCoverageTargets: '100, 95, 80'
+            }
+        }
+        stage('Static') {
+            agent { label 'unit' }
+            steps {
+                    unstash 'repo'
+                    sh '''  whoami
+                            hostname
+                    '''
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                        
+                        ${PYBIN}/flake8 --format=pylint --exit-zero ${WORKSPACE}/app > ${WORKSPACE}/flake8.out
+                        
+                    '''
+                 }     
+                recordIssues enabledForFailure: true, tools:[flake8(name: 'Flake8', pattern: 'flake8.out')], qualityGates: [[threshold:8,type: 'TOTAL',unstable: true], [threshold: 11, type: 'TOTAL', unstable: false]], unhealthy:10
+           }
+            
+        }
+        stage('Rest') {		
+            parallel{
+                stage("flask & Wiremock"){
+                    agent { label 'principal' }
+            	    steps {
+            	     unstash 'repo'
+            	     sh ''' whoami
+                			hostname
+                		'''
+            	  	 sh '''
+            		    export FLASK_APP="app/api.py"
+            		    export FLASK_ENV="development"
+            		    export BUILD_ID=flask; ${PYBIN}/flask run & 
+            		 '''
+            		 sh 'nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address localhost --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+            		    
+            		 sh 'sleep 30'
+            		 	    
+            		    sh 'export PYTHONPATH=${WORKSPACE}'
+            		    sh '${PYBIN}/pytest --junitxml=result-rest.xml test/rest' 
+            		    stash includes: '**/result-rest.xml', name: 'result-rest'
+            	    }
+                }
+               
+                stage("Run Tests"){
+                    agent { label 'principal' }
+            	    steps {
+            	        unstash 'repo'
+            	        sh '''  whoami
+                			    hostname
+                		'''
+            		    sh 'sleep 15'
+            		   // sh 'export BUILD_ID=wiremock_service; nohup java -jar ${WORKSPACE}/wiremock.jar --bind-address 127.0.0.1 --port 9090 --root-dir ${WORKSPACE}/test/wiremock &'    
+            		    
+            		    sh 'export PYTHONPATH=${WORKSPACE}'
+            		    sh '${PYBIN}/pytest --junitxml=result-rest.xml test/rest' 
+            		    stash includes: '**/result-rest.xml', name: 'result-rest'
+            	    }
+                }
+            }
+        }
+
+        stage('Security') {
+            agent { label 'rest' }
+            steps {
+                    unstash 'repo'
+                    sh '''  whoami
+                            hostname
+                    '''
+                    sh '''
+                        export PYTHONPATH=${WORKSPACE}
+                        ${PYBIN}/bandit --exit-zero  -r . -f custom -o bandit.out --severity-level medium --msg-template "{abspath}:{line}: [{test_id}, {severity}] {msg}" 
+                    '''
+                    recordIssues enabledForFailure: true, tools:[pyLint(name: 'Bandit', pattern: 'bandit.out')], qualityGates: [[threshold:1,type: 'TOTAL',unstable: true], [threshold: 3, type: 'TOTAL', unstable: false]]
+                }
+        }
+        
+        stage('Performance') {
+            agent { label 'principal' }
+            steps {
+                    unstash 'repo'
+                    sh '''  whoami
+                            hostname
+                    '''
+                    // No es ideal porque flask debería estar corriendo por defecto siempre
+                    sh '''
+            		    export FLASK_APP="app/api.py"
+            		    export FLASK_ENV="development"
+            		    export BUILD_ID=flask; ${PYBIN}/flask run & 
+            		 '''
+                    sh '''
+                      /usr/local/bin/jmeter -n -t test/jmeter/performance.jmx -f -l flask.jtl
+                    '''
+                    perfReport sourceDataFiles: 'flask.jtl'
+                }
+        }
+
+        stage('Results') {
+            agent { label 'principal' }
+            steps {
+                unstash 'result-rest'
+                junit 'result*.xml' 
+                sh 'export BUILD_ID=${BUILD_ID}'
+                
+            }
+        }
+     
+    }
+ 
+}
