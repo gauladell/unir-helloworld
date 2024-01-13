@@ -1,12 +1,13 @@
 pipeline {
     agent { label 'principal' }
      stages {
-       // stage('Get Code') {
-            //steps {
-                // Obtener código del repo
+        stage('Get Code') {
+            steps {
+               // Obtener código del repo
 		//sh 'git clone https://github.com/gauladell/unir-helloworld.git'
-            //}
-       // }
+ 		Git branch: 'feature_fix_coverage', url: 'https://github.com/gauladell/unir-helloworld'
+            }
+        }
         
         stage('Requirements') {
             steps {
